@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Internship Board - EdVyro</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; color: #1a1a1a; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 50px; background: linear-gradient(135deg, #d946ef 0%, #ec4899 100%); color: white; padding: 40px 20px; border-radius: 12px; }
+        header h1 { font-size: 36px; margin-bottom: 10px; }
+        header p { font-size: 16px; }
+        .filters-section { background: white; padding: 25px; border-radius: 12px; margin-bottom: 30px; display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 15px; align-items: end; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .filter-group { display: flex; flex-direction: column; }
+        .filter-group label { font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+        .filter-group input, .filter-group select { padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; font-family: inherit; }
+        .filter-group input:focus, .filter-group select:focus { outline: none; border-color: #d946ef; box-shadow: 0 0 0 3px rgba(217, 70, 239, 0.1); }
+        .btn-clear { padding: 10px 20px; background: #f0f0f0; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; }
+        .btn-clear:hover { background: #e0e0e0; }
+        .internships-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; margin-bottom: 40px; }
+        .internship-card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); cursor: pointer; border: 2px solid transparent; transition: all 0.3s; }
+        .internship-card:hover { transform: translateY(-8px); box-shadow: 0 12px 30px rgba(217, 70, 239, 0.2); border-color: #d946ef; }
+        .card-title { font-size: 18px; font-weight: 700; margin-bottom: 5px; }
+        .card-company { color: #666; font-size: 14px; margin-bottom: 15px; }
+        .card-tags { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .tag { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: capitalize; }
+        .tag.domain { background: #fce7f3; color: #c026d3; }
+        .tag.mode { background: #dcfce7; color: #166534; }
+        .card-description { color: #666; font-size: 14px; line-height: 1.5; margin-bottom: 15px; }
+        .card-meta { display: flex; gap: 15px; font-size: 13px; color: #666; margin-bottom: 15px; flex-wrap: wrap; }
+        .card-action { margin-top: 20px; }
+        .btn-primary { width: 100%; padding: 12px 20px; background: linear-gradient(135deg, #d946ef 0%, #ec4899 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.3s; }
+        .btn-primary:hover { transform: scale(1.02); box-shadow: 0 8px 20px rgba(217, 70, 239, 0.3); }
+        .loading-state, .empty-state, .error-state { text-align: center; padding: 60px 20px; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .spinner { width: 50px; height: 50px; border: 4px solid #f0f0f0; border-top-color: #d946ef; border-radius: 50%; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error-state { border: 2px solid #ef4444; background: #fef2f2; }
+        .error-state h2 { color: #dc2626; }
+        .btn-retry { padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin: 40px 0; }
+        .pagination button { padding: 10px 15px; border: 2px solid #e0e0e0; background: white; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+        dialog { border: none; border-radius: 12px; padding: 0; max-width: 600px; width: 90%; box-shadow: 0 25px 50px rgba(0,0,0,0.2); }
+        dialog::backdrop { background: rgba(0,0,0,0.5); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 25px; border-bottom: 1px solid #e0e0e0; }
+        .modal-header h2 { margin: 0; }
+        .modal-close { background: none; border: none; font-size: 28px; cursor: pointer; color: #999; }
+        .modal-close:hover { color: #1a1a1a; }
+        .modal-body { padding: 25px; max-height: 70vh; overflow-y: auto; }
+        .modal-body p { margin-bottom: 15px; }
+        .modal-body strong { color: #d946ef; }
+        .modal-footer { padding: 20px 25px; border-top: 1px solid #e0e0e0; display: flex; gap: 10px; }
+        .modal-footer button { flex: 1; padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .btn-secondary { 
+            background: linear-gradient(135deg, #d946ef 0%, #ec4899 100%);
+            color: white;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .btn-secondary:hover { 
+            transform: scale(1.02);
+            box-shadow: 0 8px 20px rgba(217, 70, 239, 0.3);
+        }
+        .application-modal-content { background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 100%; }
+        .application-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .application-modal-header h2 { margin: 0; font-size: 24px; }
+        .close-btn { background: none; border: none; font-size: 28px; cursor: pointer; color: #999; }
+        .close-btn:hover { color: #1a1a1a; }
+        .application-form { display: flex; flex-direction: column; gap: 20px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { margin-bottom: 8px; font-weight: 600; font-size: 14px; }
+        .form-group input, .form-group textarea { padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; font-family: inherit; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #d946ef; box-shadow: 0 0 0 3px rgba(217, 70, 239, 0.1); }
+        .form-loading { text-align: center; display: none; }
+        .form-error { padding: 15px; background: #ffebee; color: #c62828; border-radius: 6px; display: none; }
+        .form-success { padding: 15px; background: #e8f5e9; color: #2e7d32; border-radius: 6px; text-align: center; font-weight: 600; display: none; }
+        .app-modal-footer { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+        .close-app-modal-btn { width: 100%; padding: 12px 20px; background: linear-gradient(135deg, #d946ef 0%, #ec4899 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: all 0.3s; }
+        .close-app-modal-btn:hover { transform: scale(1.02); box-shadow: 0 8px 20px rgba(217, 70, 239, 0.3); }
+        @media (max-width: 768px) {
+            .filters-section { grid-template-columns: 1fr; }
+            .internships-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 Internship Board</h1>
+            <p>Find your perfect internship opportunity</p>
+        </header>
+
+        <section class="filters-section">
+            <div class="filter-group">
+                <label for="search-input">🔍 Search</label>
+                <input type="text" id="search-input" placeholder="Search internships...">
+            </div>
+            <div class="filter-group">
+                <label for="domain-filter">📚 Domain</label>
+                <select id="domain-filter">
+                    <option value="">All Domains</option>
+                    <option value="Full Stack Development">Full Stack Development</option>
+                    <option value="Frontend Development">Frontend Development</option>
+                    <option value="Backend Development">Backend Development</option>
+                    <option value="UI/UX Design">UI/UX Design</option>
+                    <option value="Data Analytics">Data Analytics</option>
+                    <option value="Data Science">Data Science</option>
+                    <option value="Cyber Security">Cyber Security</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="mode-filter">💼 Mode</label>
+                <select id="mode-filter">
+                    <option value="">All Modes</option>
+                    <option value="Remote">Remote</option>
+                    <option value="On-site">On-site</option>
+                    <option value="Hybrid">Hybrid</option>
+                </select>
+            </div>
+            <button class="btn-clear" id="clear-filters">Clear Filters</button>
+        </section>
+
+        <div id="loading-state" class="loading-state" hidden>
+            <div class="spinner"></div>
+            <h2>Loading internships...</h2>
+        </div>
+
+        <div id="empty-state" class="empty-state" hidden>
+            <h2>No Internships Found</h2>
+        </div>
+
+        <div id="error-state" class="error-state" hidden>
+            <h2>❌ Oops! Something went wrong</h2>
+            <p>We couldn't load the internships. Please try again.</p>
+            <button class="btn-retry" id="retry-button">Retry</button>
+        </div>
+
+        <div id="internships-list" class="internships-grid"></div>
+
+        <div id="pagination" class="pagination" hidden>
+            <button id="prev-page">← Previous</button>
+            <span id="page-info">Page 1 of 1</span>
+            <button id="next-page">Next →</button>
+        </div>
+    </div>
+
+    <dialog id="detail-modal">
+        <div class="modal-header">
+            <h2 id="modal-title">Internship Details</h2>
+            <button id="close-modal" class="modal-close">✕</button>
+        </div>
+        <div id="modal-body" class="modal-body"></div>
+        <div class="modal-footer">
+            <button id="apply-btn" class="btn-primary">Apply Now</button>
+            <button id="close-modal-btn" class="btn-secondary">Close</button>
+        </div>
+    </dialog>
+
+    <dialog id="application-modal">
+        <div class="application-modal-content">
+            <div class="application-modal-header">
+                <h2>Apply Now</h2>
+                <button id="close-app-modal" class="close-btn" type="button">✕</button>
+            </div>
+
+            <form id="application-form" class="application-form">
+                <input type="hidden" id="internship-id">
+                <div class="form-group">
+                    <label for="app-name">Full Name *</label>
+                    <input type="text" id="app-name" placeholder="Your full name" required>
+                </div>
+                <div class="form-group">
+                    <label for="app-email">Email *</label>
+                    <input type="email" id="app-email" placeholder="your@email.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="app-portfolio">Portfolio URL (Optional)</label>
+                    <input type="url" id="app-portfolio" placeholder="https://yourportfolio.com">
+                </div>
+                <div class="form-group">
+                    <label for="app-cover-letter">Cover Letter (Optional)</label>
+                    <textarea id="app-cover-letter" placeholder="Tell us why you're interested..." rows="5"></textarea>
+                </div>
+                <button type="submit" class="btn-primary">Submit Application</button>
+            </form>
+
+            <div id="app-form-loading" class="form-loading">
+                <div class="spinner"></div>
+                <p>Submitting...</p>
+            </div>
+
+            <div id="app-form-error" class="form-error"></div>
+
+            <div id="app-form-success" class="form-success">
+                ✅ Application submitted successfully!
+            </div>
+
+            <div class="app-modal-footer">
+                <button id="close-app-modal-btn" class="close-app-modal-btn" type="button">Close</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script src="script.js"></script>
+</body>
+</html>
