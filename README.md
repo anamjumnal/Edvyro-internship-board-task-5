@@ -6,7 +6,7 @@ Part of the Edvyro Full Stack Development Internship. A student internship board
 
 - **App (frontend + API, same origin):** https://edvyro-internship-board-task-5.onrender.com/
 - **Repository:** https://github.com/anamjumnal/Edvyro-internship-board-task-5
-- **Two-minute walkthrough:** *(add video link here)*
+- **Two-minute walkthrough:** https://lnkd.in/p/gfN_Yvvj
 
 The frontend is served directly by the Express server (`express.static`), so there is only **one URL** — no separate static host, and no need to run anything locally for a reviewer to use it.
 
