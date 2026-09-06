@@ -10,12 +10,29 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_FILE = process.env.DB_FILE || 'internships.db';
 
+// LOGGING SETUP
+const fs = require('fs');
+const logDir = 'logs';
+if (!fs.existsSync(logDir)) fs.mkdirSync(logDir);
+
+const logFile = path.join(logDir, `server-${new Date().toISOString().split('T')[0]}.log`);
+
+function log(message, level = 'INFO') {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] [${level}] ${message}`;
+    console.log(logMessage);
+    fs.appendFileSync(logFile, logMessage + '\n');
+}
+
+log('🚀 Server starting...');
+
 // SECURITY HEADERS
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Content-Security-Policy', "default-src 'self'");
     next();
 });
 
@@ -32,23 +49,35 @@ const applicationLimiter = rateLimit({
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// SERVE STATIC FILES (Frontend)
 app.use(express.static(path.join(__dirname)));
+
+// REQUEST LOGGING MIDDLEWARE
+app.use((req, res, next) => {
+    log(`${req.method} ${req.path}`, 'REQUEST');
+    next();
+});
 
 // DATABASE
 const db = new sqlite3.Database(DB_FILE, (err) => {
     if (err) {
-        console.error('❌ Database error:', err);
+        log(`Database connection error: ${err.message}`, 'ERROR');
         process.exit(1);
     }
-    console.log('✅ Connected to SQLite');
+    log('Connected to SQLite database');
     initializeDatabase();
 });
 
 const dbRun = (sql, params = []) => {
     return new Promise((resolve, reject) => {
         db.run(sql, params, function(err) {
-            if (err) reject(err);
-            else resolve({ id: this.lastID, changes: this.changes });
+            if (err) {
+                log(`Database error: ${err.message}`, 'ERROR');
+                reject(err);
+            } else {
+                resolve({ id: this.lastID, changes: this.changes });
+            }
         });
     });
 };
@@ -56,8 +85,12 @@ const dbRun = (sql, params = []) => {
 const dbGet = (sql, params = []) => {
     return new Promise((resolve, reject) => {
         db.get(sql, params, (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
+            if (err) {
+                log(`Database error: ${err.message}`, 'ERROR');
+                reject(err);
+            } else {
+                resolve(row);
+            }
         });
     });
 };
@@ -65,8 +98,12 @@ const dbGet = (sql, params = []) => {
 const dbAll = (sql, params = []) => {
     return new Promise((resolve, reject) => {
         db.all(sql, params, (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows || []);
+            if (err) {
+                log(`Database error: ${err.message}`, 'ERROR');
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
         });
     });
 };
@@ -107,20 +144,20 @@ async function initializeDatabase() {
             )
         `);
 
-        console.log('✅ Tables created');
+        log('Database tables created/verified');
         seedDatabase();
     } catch (error) {
-        console.error('❌ DB init error:', error);
+        log(`Database initialization error: ${error.message}`, 'ERROR');
     }
 }
 
-// SEED DATABASE - EXACT DATA FROM internships.json
+// SEED DATABASE
 async function seedDatabase() {
     try {
         const count = await dbGet('SELECT COUNT(*) as count FROM internships');
         
         if (count.count === 0) {
-            console.log('📥 Seeding database with 12 internships...');
+            log('Seeding database with 12 internships...');
             
             const sampleData = [
                 { id: 'INT-001', title: 'Frontend Intern', company: 'TechCorp', domain: 'Full Stack Development', mode: 'Remote', location: 'India', duration: '3 months', stipend: '₹15,000/month', openings: 3, description: "Join our frontend team to build responsive web applications using React and Vue.js. You'll work on real projects and learn modern web development practices.", skills: 'HTML,CSS,JavaScript,React' },
@@ -143,12 +180,12 @@ async function seedDatabase() {
                     [data.id, data.title, data.company, data.domain, data.mode, data.location, data.duration, data.stipend, data.openings, data.description, data.skills]
                 );
             }
-            console.log('✅ Database seeded with 12 internships');
+            log('Database seeded with 12 internships');
         } else {
-            console.log(`✅ Database has ${count.count} internships`);
+            log(`Database has ${count.count} internships`);
         }
     } catch (error) {
-        console.error('❌ Seeding error:', error);
+        log(`Seeding error: ${error.message}`, 'ERROR');
     }
 }
 
@@ -196,6 +233,11 @@ function validateApplicationForm(data) {
 
 // API ENDPOINTS
 
+// HEALTH CHECK
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'success', message: 'API running', timestamp: new Date().toISOString() });
+});
+
 // GET all internships
 app.get('/api/internships', async (req, res) => {
     try {
@@ -223,13 +265,15 @@ app.get('/api/internships', async (req, res) => {
         const total = countResult.total;
         const pages = Math.ceil(total / limit);
 
+        log(`Fetched ${internships.length} internships (page ${page})`);
+
         res.json({
             status: 'success',
             data: internships,
             pagination: { page, limit, total, pages, hasMore: page < pages }
         });
     } catch (error) {
-        console.error('Error:', error);
+        log(`GET /api/internships error: ${error.message}`, 'ERROR');
         res.status(500).json({ status: 'error', message: 'Failed to fetch internships' });
     }
 });
@@ -243,8 +287,10 @@ app.get('/api/internships/:id', async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Internship not found' });
         }
 
+        log(`Fetched internship: ${req.params.id}`);
         res.json({ status: 'success', data: internship });
     } catch (error) {
+        log(`GET /api/internships/:id error: ${error.message}`, 'ERROR');
         res.status(500).json({ status: 'error', message: 'Failed to fetch internship' });
     }
 });
@@ -254,7 +300,6 @@ app.post('/api/applications', applicationLimiter, async (req, res) => {
     try {
         const { internship_id, applicant_name, applicant_email, portfolio_url, cover_letter } = req.body;
 
-        // Validation
         const validationErrors = validateApplicationForm({
             internship_id,
             applicant_name,
@@ -264,6 +309,7 @@ app.post('/api/applications', applicationLimiter, async (req, res) => {
         });
 
         if (validationErrors.length > 0) {
+            log(`Application validation failed: ${validationErrors.join(', ')}`, 'WARN');
             return res.status(400).json({
                 status: 'error',
                 message: 'Validation failed',
@@ -271,34 +317,35 @@ app.post('/api/applications', applicationLimiter, async (req, res) => {
             });
         }
 
-        // Check if internship exists
         const internship = await dbGet('SELECT id FROM internships WHERE id = ?', [internship_id]);
         if (!internship) {
+            log(`Application for non-existent internship: ${internship_id}`, 'WARN');
             return res.status(404).json({ status: 'error', message: 'Internship not found' });
         }
 
-        // Check for duplicate
         const duplicate = await dbGet(
             'SELECT id FROM applications WHERE internship_id = ? AND applicant_email = ?',
             [internship_id, applicant_email]
         );
         if (duplicate) {
+            log(`Duplicate application attempt: ${internship_id} by ${applicant_email}`, 'WARN');
             return res.status(409).json({ status: 'error', message: 'You have already applied to this internship' });
         }
 
-        // Insert application
         await dbRun(
             `INSERT INTO applications (internship_id, applicant_name, applicant_email, portfolio_url, cover_letter)
              VALUES (?, ?, ?, ?, ?)`,
             [internship_id, applicant_name, applicant_email, portfolio_url || null, cover_letter || null]
         );
 
+        log(`Application submitted: ${applicant_name} (${applicant_email}) for ${internship_id}`);
+
         res.status(201).json({
             status: 'success',
             message: 'Application submitted successfully'
         });
     } catch (error) {
-        console.error('Error:', error);
+        log(`POST /api/applications error: ${error.message}`, 'ERROR');
         res.status(500).json({ status: 'error', message: 'Failed to submit application' });
     }
 });
@@ -318,33 +365,41 @@ app.get('/api/applications/:internship_id', async (req, res) => {
 
         res.json({ status: 'success', data: applications, pagination: { total: applications.length } });
     } catch (error) {
+        log(`GET /api/applications error: ${error.message}`, 'ERROR');
         res.status(500).json({ status: 'error', message: 'Failed to fetch applications' });
     }
 });
 
-// Health check
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'success', message: 'API running' });
+// 404 HANDLER - Serve index.html for SPA routing
+app.use((req, res) => {
+    if (req.path.startsWith('/api')) {
+        log(`404 Not Found: ${req.method} ${req.path}`, 'WARN');
+        res.status(404).json({ status: 'error', message: 'Route not found' });
+    } else {
+        // Serve index.html for all other routes (SPA)
+        res.sendFile(path.join(__dirname, 'index.html'));
+    }
+});
+
+// ERROR HANDLER
+app.use((err, req, res, next) => {
+    log(`Unhandled error: ${err.message}`, 'ERROR');
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
 });
 
 // START SERVER
 app.listen(PORT, () => {
-    console.log(`
-╔════════════════════════════════════════════════════════════╗
-║       🚀 BACKEND API SERVER - TASK 4 READY 🚀              ║
-╠════════════════════════════════════════════════════════════╣
-║  ✅ Server: http://localhost:${PORT}                             ║
-║  ✅ API: http://localhost:${PORT}/api/internships                ║
-║  ✅ Applications: POST http://localhost:${PORT}/api/applications  ║
-║  ✅ Rate Limiting: 5 apps per 15 minutes ✅               ║
-║  ✅ Secure Headers: Enabled ✅                            ║
-║  ✅ Input Validation: Enabled ✅                          ║
-║  ✅ 12 Internships Seeded ✅                              ║
-╚════════════════════════════════════════════════════════════╝
-    `);
+    log(`🚀 Server running on http://localhost:${PORT}`);
+    log(`📊 API: http://localhost:${PORT}/api/internships`);
+    log(`💓 Health: http://localhost:${PORT}/api/health`);
+    log(`📁 Logs: ${logFile}`);
+    log(`✅ Frontend & Backend on SAME URL!`);
 });
 
 process.on('SIGINT', () => {
-    console.log('\n✅ Closing...');
-    db.close(() => process.exit(0));
+    log('Server shutting down...');
+    db.close(() => {
+        log('Database connection closed');
+        process.exit(0);
+    });
 });
