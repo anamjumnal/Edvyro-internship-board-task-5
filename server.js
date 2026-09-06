@@ -155,10 +155,10 @@ async function initializeDatabase() {
 async function seedDatabase() {
     try {
         const count = await dbGet('SELECT COUNT(*) as count FROM internships');
-        
+
         if (count.count === 0) {
             log('Seeding database with 12 internships...');
-            
+
             const sampleData = [
                 { id: 'INT-001', title: 'Frontend Intern', company: 'TechCorp', domain: 'Full Stack Development', mode: 'Remote', location: 'India', duration: '3 months', stipend: '₹15,000/month', openings: 3, description: "Join our frontend team to build responsive web applications using React and Vue.js. You'll work on real projects and learn modern web development practices.", skills: 'HTML,CSS,JavaScript,React' },
                 { id: 'INT-002', title: 'Backend Engineer', company: 'DataFlow Systems', domain: 'Backend Development', mode: 'On-site', location: 'Bangalore', duration: '6 months', stipend: '₹20,000/month', openings: 2, description: 'Help build scalable backend services using Node.js and Python. Experience with databases, APIs, and microservices architecture.', skills: 'Node.js,Python,MongoDB,PostgreSQL' },
@@ -195,11 +195,12 @@ function validateEmail(email) {
     return emailRegex.test(email);
 }
 
+// Only allow http/https portfolio links — rejects javascript:, data:, file:, etc.
 function validateURL(url) {
     if (!url) return true;
     try {
-        new URL(url);
-        return true;
+        const parsed = new URL(url);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
     } catch {
         return false;
     }
@@ -231,6 +232,14 @@ function validateApplicationForm(data) {
     return errors;
 }
 
+// Mask an email before it ever reaches a log line: j***@domain.com
+function maskEmail(email) {
+    if (!email || typeof email !== 'string' || !email.includes('@')) return '[hidden]';
+    const [user, domain] = email.split('@');
+    const maskedUser = user.length <= 1 ? '*' : user[0] + '*'.repeat(user.length - 1);
+    return `${maskedUser}@${domain}`;
+}
+
 // API ENDPOINTS
 
 // HEALTH CHECK
@@ -244,7 +253,7 @@ app.get('/api/internships', async (req, res) => {
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const limit = Math.min(50, parseInt(req.query.limit) || 6);
         const offset = (page - 1) * limit;
-        
+
         const domain = req.query.domain ? `%${req.query.domain}%` : '%';
         const mode = req.query.mode ? `%${req.query.mode}%` : '%';
         const search = req.query.search ? `%${req.query.search}%` : '%';
@@ -282,7 +291,7 @@ app.get('/api/internships', async (req, res) => {
 app.get('/api/internships/:id', async (req, res) => {
     try {
         const internship = await dbGet('SELECT * FROM internships WHERE id = ?', [req.params.id]);
-        
+
         if (!internship) {
             return res.status(404).json({ status: 'error', message: 'Internship not found' });
         }
@@ -309,7 +318,7 @@ app.post('/api/applications', applicationLimiter, async (req, res) => {
         });
 
         if (validationErrors.length > 0) {
-            log(`Application validation failed: ${validationErrors.join(', ')}`, 'WARN');
+            log(`Application validation failed for internship ${internship_id}: ${validationErrors.join(', ')}`, 'WARN');
             return res.status(400).json({
                 status: 'error',
                 message: 'Validation failed',
@@ -328,7 +337,7 @@ app.post('/api/applications', applicationLimiter, async (req, res) => {
             [internship_id, applicant_email]
         );
         if (duplicate) {
-            log(`Duplicate application attempt: ${internship_id} by ${applicant_email}`, 'WARN');
+            log(`Duplicate application attempt: ${internship_id} by ${maskEmail(applicant_email)}`, 'WARN');
             return res.status(409).json({ status: 'error', message: 'You have already applied to this internship' });
         }
 
@@ -338,7 +347,7 @@ app.post('/api/applications', applicationLimiter, async (req, res) => {
             [internship_id, applicant_name, applicant_email, portfolio_url || null, cover_letter || null]
         );
 
-        log(`Application submitted: ${applicant_name} (${applicant_email}) for ${internship_id}`);
+        log(`Application submitted for ${internship_id} by ${maskEmail(applicant_email)}`);
 
         res.status(201).json({
             status: 'success',
