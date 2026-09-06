@@ -1,4 +1,4 @@
-const API_URL = "https://Edvyro-internship-board-task-4-production.up.railway.app/api/internships";
+const API_URL = "/api/internships";
 
 let currentPage = 1;
 const limit = 6;
@@ -195,7 +195,7 @@ applicationForm.addEventListener("submit", async (e) => {
     appFormSuccess.style.display = "none";
 
     try {
-        const response = await fetch("https://Edvyro-internship-board-task-4-production.up.railway.app/api/applications", {
+        const response = await fetch("/api/applications", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
